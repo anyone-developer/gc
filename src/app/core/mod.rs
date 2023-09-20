@@ -1,7 +1,6 @@
+use std::io::BufRead;
 use std::process::Command as StdCommand;
-use std::process::Output;
-use std::sync::mpsc;
-use std::thread;
+use std::process::Stdio;
 
 use crate::app::config::AppConfigAction;
 use crate::display::Display;
@@ -88,69 +87,84 @@ fn replace_command_detail(original: &str, params: Vec<&String>) -> String {
     let mut result = original.to_string();
 
     for (index, param) in params.iter().enumerate() {
-        let placeholder = format!("${}", index);
+        let placeholder = format!("#{}", index);
         result = result.replace(&placeholder, param);
     }
 
     result
 }
 
-fn single_thread_execute_command(command: &str) -> Result<String, String> {
-    let output: Output = match StdCommand::new("sh").arg("-c").arg(command).output() {
-        Ok(output) => output,
-        Err(_) => return Err(String::from("Failed to execute command")),
-    };
+fn execute_command(command: String, prefix: &str, suffix: &str) -> Result<(), String> {
+    let (tx, rx) = std::sync::mpsc::channel();
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        Ok(stdout.to_string())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(stderr.to_string())
-    }
-}
-
-fn execute_command(command: String) -> Result<(), String> {
-    let (tx, rx) = mpsc::channel();
-
-    // 创建一个线程执行命令并将每行的 stdout 发送到通道
-    let command_thread = thread::spawn(move || {
-        let output: Output = match StdCommand::new("sh").arg("-c").arg(command).output() {
-            Ok(output) => output,
+    let command_thread = std::thread::spawn(move || {
+        let mut child = match StdCommand::new(get_shell_command())
+            .arg("-c")
+            .arg(command)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => child,
             Err(_) => {
                 let _ = tx.send(Err(String::from("Failed to execute command")));
                 return;
             }
         };
 
-        if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            for line in stdout.lines() {
-                if let Err(_) = tx.send(Ok(line.to_string())) {
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        let stdout_reader = std::io::BufReader::new(stdout);
+        let stderr_reader = std::io::BufReader::new(stderr);
+
+        for line in stdout_reader.lines() {
+            if let Ok(line) = line {
+                if let Err(_) = tx.send(Ok(line)) {
                     break;
                 }
             }
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let _ = tx.send(Err(stderr.to_string()));
         }
+
+        for line in stderr_reader.lines() {
+            if let Ok(line) = line {
+                if let Err(_) = tx.send(Err(line)) {
+                    break;
+                }
+            }
+        }
+
+        let _ = child.wait();
     });
 
-    // 在主线程中接收通道中的消息并进行输出
     while let Ok(result) = rx.recv() {
         match result {
-            Ok(line) => println!("{}", line),
+            Ok(line) => println!("{}{}{}", prefix, line, suffix),
             Err(err) => {
-                println!("Error: {}", err);
+                println!("{}", err);
                 break;
             }
         }
     }
 
-    // 等待命令执行线程结束
     let _ = command_thread.join();
 
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn get_shell_command() -> &'static str {
+    "sh"
+}
+
+#[cfg(target_os = "windows")]
+fn get_shell_command() -> &'static str {
+    "cmd"
+}
+
+#[cfg(target_os = "linux")]
+fn get_shell_command() -> &'static str {
+    "sh"
 }
 
 pub struct AppCommands;
@@ -234,6 +248,17 @@ impl AppCommandsAction for AppCommands {
 
         let _replaced = replace_command_detail(detail, params);
 
-        let _ = execute_command(_replaced);
+        let prefix = command_obj
+            .prefix
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or("");
+        let suffix = command_obj
+            .suffix
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or("");
+
+        let _ = execute_command(_replaced, &prefix, &suffix);
     }
 }

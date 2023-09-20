@@ -59,7 +59,7 @@
             "args": [
                 "add",
                 "git-changes",
-                "'git diff --name-only $0 $1'",
+                "'git diff --name-only #0 #1'",
                 "--prefix",
                 "[x] ",
                 "--suffix",
@@ -125,8 +125,8 @@
             },
             "args": [
                 "run",
-                "git-changes",
-                "arg1,arg2,arg3",
+                "git-cached-changes",
+                "main",
             ],
             "cwd": "${workspaceFolder}"
         },
