@@ -1,6 +1,6 @@
 pub static APP_SECTION: &str = "App";
 pub static APP_VERSION: &str = "Version";
-pub static APP_GIT_SOURCE: &str = "https://github.com/Anyone-Developers/xxx";
+pub static APP_GIT_SOURCE: &str = "https://github.com/Anyone-Developers/gc";
 
 pub static COMMANDS: &str = "Commands";
 
