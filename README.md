@@ -112,7 +112,4 @@ display help information.
 
 ## Donation
 
-Currently, I am laid off. I need suitable job to raise my life. If you have interests to my skill, Please contact me. email:
-[zhang_nan_163@163.com](mailto:zhang_nan_163@163.com) / 
-[jenkins.zhang@outlook.com](mailto:jenkins.zhang@outlook.com) / 
-[real.anyone.developer@gmail.com](mailto:real.anyone.developer@gmail.com) 
+Currently, I am laid off. I need suitable job to raise my life. If you have interests to my skill, Please contact me. [zhang_nan_163@163.com](mailto:zhang_nan_163@163.com)
